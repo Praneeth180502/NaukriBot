@@ -1,0 +1,103 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+wheels/
+pip-wheel-metadata/
+MANIFEST
+
+# ─── Virtual environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# ─── Secrets & credentials ────────────────────────────────────────────────────
+.env
+config/config.yaml        # contains Naukri email/password & Telegram token
+!config/config.example.yaml
+
+# ─── Session & auth cache ─────────────────────────────────────────────────────
+data/cache/naukri_session.json
+data/cache/login_*.png
+data/cache/find_direct_jobs.py
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+data/job_hunter.db
+data/job_hunter.db-shm
+data/job_hunter.db-wal
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── ML / FAISS index ─────────────────────────────────────────────────────────
+data/faiss_index.*
+data/models/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+data/logs/
+*.log
+
+# ─── Resume / personal data ───────────────────────────────────────────────────
+data/*.pdf
+data/*.docx
+data/*.doc
+
+# ─── Test run screenshots ─────────────────────────────────────────────────────
+data/cache/test_runs/
+
+# ─── Playwright browser cache ─────────────────────────────────────────────────
+.playwright/
+
+# ─── IDE & editor ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+nosetests.xml
+test-results/
+
+# ─── Type checking / linting ──────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# ─── Distribution / packaging ─────────────────────────────────────────────────
+*.tar.gz
+*.zip
+ai_job_hunter.zip
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+mnt/
+
+# ─── Jupyter ──────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── OS generated ─────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db

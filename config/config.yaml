@@ -1,0 +1,109 @@
+# AI Job Hunter — Configuration
+# Copy to config.yaml and fill in your values
+
+app:
+  name: "AI Job Hunter"
+  version: "1.0.0"
+  debug: false
+  log_level: "INFO"
+
+# --- Naukri credentials ---
+naukri:
+  email: "apraneethreddy20891a0502@gmail.com"
+  password: "Naukri@1805"
+  profile_url: "https://www.naukri.com/mnjuser/profile"
+  resume_path: "data/Praneeth fullstackai resume.pdf"   # local path to your PDF resume
+  # How often to search (minutes)
+  crawl_interval_minutes: 15
+  # Max jobs per search cycle
+  max_jobs_per_cycle: 100
+  headless: true
+
+# --- Search parameters ---
+search:
+  target_roles:
+    - "Full Stack Developer"
+    - "Software Engineer"
+    - "Backend Developer"
+    - "Python Developer"
+    - "FastAPI Developer"
+    - "React Developer"
+    - "AI Engineer"
+    - "GenAI Engineer"
+    - "LLM Engineer"
+    - "RAG Engineer"
+    - "Machine Learning Engineer"
+  locations:
+    - "Hyderabad"
+    - "Bangalore"
+    - "Chennai"
+    - "Pune"
+    - "Remote"
+  experience_min: 0
+  experience_max: 2
+
+# --- Ranking weights (must sum to 1.0) ---
+ranking:
+  resume_match: 0.40
+  skill_match: 0.20
+  location_match: 0.15
+  experience_match: 0.15
+  company_reputation: 0.10
+  top_n: 20
+  # Min match score to send Telegram alert
+  alert_threshold: 55
+
+# --- Telegram ---
+telegram:
+  bot_token: "8716656103:AAF0oud52flyNGpj48wX-HlQHRMSMZgyTwE"
+  # Your Telegram user/chat ID
+  chat_id: "5121026351"
+
+# --- Models ---
+models:
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  # FAISS index save path
+  faiss_index_path: "data/faiss_index"
+  models_cache_dir: "data/models"
+
+# --- Database ---
+database:
+  url: "sqlite:///data/job_hunter.db"
+
+# --- API server ---
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+
+# --- Known reputable companies (boosts company score) ---
+reputable_companies:
+  tier1:
+    - "Google"
+    - "Microsoft"
+    - "Amazon"
+    - "Meta"
+    - "Apple"
+    - "Netflix"
+    - "OpenAI"
+    - "Anthropic"
+  tier2:
+    - "Infosys"
+    - "TCS"
+    - "Wipro"
+    - "HCL"
+    - "Cognizant"
+    - "Accenture"
+    - "IBM"
+    - "Capgemini"
+    - "Deloitte"
+  tier3:
+    - "Zomato"
+    - "Swiggy"
+    - "Flipkart"
+    - "Ola"
+    - "Paytm"
+    - "CRED"
+    - "Razorpay"
+    - "Zerodha"
+    - "PhonePe"

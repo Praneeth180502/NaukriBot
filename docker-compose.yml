@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  job_hunter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_job_hunter
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist database, model cache, FAISS index, session cache
+      - ./data:/app/data
+      # Config (read-only)
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    environment:
+      - CONFIG_PATH=config/config.yaml
+      # Override secrets via env (takes precedence over config.yaml)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - NAUKRI_EMAIL=${NAUKRI_EMAIL:-}
+      - NAUKRI_PASSWORD=${NAUKRI_PASSWORD:-}
+      # Playwright headless
+      - PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Optional: lightweight Redis for future caching / pub-sub
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis_data:/data
+
+# volumes:
+#   redis_data:
