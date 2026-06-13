@@ -98,15 +98,19 @@ async def _run(no_telegram: bool = False, once: bool = False, bootstrap_only: bo
 
 
 async def _run_telegram(agent):
-    """Run Telegram bot in polling mode."""
+    """Run Telegram bot in polling mode with network-aware retry."""
     from app.services.telegram_service import TelegramService
+    from app.core.network import wait_for_network
+    from telegram.error import NetworkError as TelegramNetworkError
+
     svc = TelegramService()
     app = svc.build_application(agent)
     await app.initialize()
     await app.start()
     await app.updater.start_polling(drop_pending_updates=True)
     logger.success("Telegram polling started")
-    # Keep alive
+
+    # Keep alive — detect network drops and pause polling until restored
     try:
         while True:
             await asyncio.sleep(60)

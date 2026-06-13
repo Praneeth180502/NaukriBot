@@ -226,11 +226,16 @@ class JobHunterAgent:
             # 3. Score → returns new JobData list with scores filled in
             scored = self._score_jobs(new_job_data, profile)
 
-            # Apply to jobs meeting the overall threshold OR having a skill match score >= 50%
+            # Apply to jobs that:
+            #   • start from 0 or 1 yr experience (entry-level / fresher-friendly), AND
+            #   • meet the overall score threshold OR have a strong skill match
             high_match = [
                 j for j in scored
-                if (j.final_score or 0) >= settings.ranking.alert_threshold
-                or (j.skill_match_score or 0) >= 50.0
+                if j.experience_min <= 1.0
+                and (
+                    (j.final_score or 0) >= settings.ranking.alert_threshold
+                    or (j.skill_match_score or 0) >= 50.0
+                )
             ]
             if high_match:
                 applied_count = 0

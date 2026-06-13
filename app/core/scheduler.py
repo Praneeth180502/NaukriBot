@@ -14,6 +14,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.core.network import async_is_network_available, wait_for_network
 
 
 class JobScheduler:
@@ -64,6 +65,20 @@ class JobScheduler:
 
     async def _run_cycle(self):
         logger.info(f"[Scheduler] Starting discovery cycle at {datetime.now().strftime('%H:%M:%S')}")
+
+        # ── Network health check ──────────────────────────────────────────────
+        if not await async_is_network_available():
+            logger.warning("[Scheduler] No network detected before cycle. Waiting for connectivity …")
+            recovered = await wait_for_network(
+                initial_delay=15.0,
+                max_delay=300.0,
+                max_attempts=20,
+            )
+            if not recovered:
+                logger.error("[Scheduler] Skipping this cycle — network unavailable.")
+                return
+        # ─────────────────────────────────────────────────────────────────────
+
         try:
             # Limit the entire cycle duration to 20 minutes to prevent infinite hangs
             await asyncio.wait_for(self._agent.run_cycle(), timeout=1200.0)
