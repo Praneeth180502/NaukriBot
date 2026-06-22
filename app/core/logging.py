@@ -11,6 +11,15 @@ from app.core.config import settings
 _configured = False
 
 
+import logging
+
+class PollingErrorFilter(logging.Filter):
+    """Filter out the loud PTB polling network errors."""
+    def filter(self, record):
+        if record.name == "telegram.ext.Updater" and "Exception happened while polling for updates" in record.getMessage():
+            return False
+        return True
+
 def setup_logging():
     global _configured
     if _configured:
@@ -39,6 +48,11 @@ def setup_logging():
         serialize=True,
         enqueue=True,
     )
+
+    # Mute the noisy telegram polling traceback
+    updater_logger = logging.getLogger("telegram.ext.Updater")
+    updater_logger.addFilter(PollingErrorFilter())
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 setup_logging()

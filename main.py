@@ -112,8 +112,20 @@ async def _run_telegram(agent):
 
     # Keep alive — detect network drops and pause polling until restored
     try:
+        from app.core.network import async_is_network_available, wait_for_network
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(30)
+            if not await async_is_network_available():
+                logger.warning("Network drop detected. Pausing Telegram polling to avoid log spam...")
+                await app.updater.stop()
+                
+                # Block until network restores
+                if await wait_for_network(initial_delay=15.0, max_delay=300.0, max_attempts=40):
+                    logger.success("Network restored. Resuming Telegram polling...")
+                    await app.updater.start_polling(drop_pending_updates=True)
+                else:
+                    logger.error("Network could not be restored. Giving up on Telegram polling.")
+                    break
     except asyncio.CancelledError:
         await app.updater.stop()
         await app.stop()
