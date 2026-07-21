@@ -1,0 +1,93 @@
+Praneeth Reddy Ankey
+ +91 8179141580
+# apraneethreddy20891a0502@gmail.com
+ï linkedin.com/in/praneeth-reddy-ankey
+* Hyderabad,
+India
+Professional Summary
+Full Stack & GenAI Engineer with 1+ year of production experience building agentic RAG systems, AI-powered
+pipelines, and real-time web applications using Python, React.js, TypeScript, and FastAPI. Skilled in LLM
+integration (Llama 4, Groq SDK, OpenAI-compatible APIs), vector databases (Supabase pgvector), prompt
+engineering, and automated document-processing workflows. Proven delivery across defence (DRDO) and enterprise
+environments. Passionate about fusing generative AI with scalable full-stack development to ship user-centric
+products.
+Technical Skills
+Languages: Python, JavaScript (ES6+), TypeScript, SQL, Java, C, C++
+AI / GenAI: Llama 4, Groq SDK, OpenAI API, Pydantic AI, LangChain, LlamaIndex, Crawl4AI, Nanonets OCR,
+Prompt Engineering, Text Embeddings, Chunking Strategies, RAG Pipelines, Agentic AI, AI Summarization Workflows
+Frontend: React 19, React.js, Next.js, Tailwind CSS, Vega-Lite, HTML5, CSS3
+Backend: FastAPI, Node.js, RESTful APIs, WebSockets, JWT / OAuth 2.0
+Databases / Vector Stores: Supabase pgvector, PostgreSQL, SQL, Pinecone (familiar)
+Data Processing: Arquero, PyMuPDF, openpyxl, Hugging Face Transformers, Web Scraping
+Tools & DevOps: Docker, GitHub Actions (CI/CD), Git, AWS S3 / GCP Cloud Run, Microsoft Teams API, VS Code
+Concepts: Semantic Search, Hierarchical Data Modelling, Multi-Agent Systems, Streaming LLM Responses, Vector Search
+Work Experience
+Defence Research & Development Organisation (DRDO)
+Hyderabad, India
+Project Intern — Full Stack Developer
+Nov 2023 – May 2024 (213 Days)
+• Led end-to-end development of a Live Missile Data Simulation system, owning both front-end and back-end modules
+across the full 213-day project lifecycle.
+• Built real-time missile trajectory dashboards in React.js with dynamic, responsive UI components rendering live
+simulation data streams.
+• Developed Python/FastAPI backend services for high-throughput data ingestion, processing, and automated mission
+analysis report generation, ensuring reliable server-client communication.
+• Designed a 4-level hierarchical data model (Main Category →Sub Category →Time-based grouping →Metrics) for
+the NOC Dashboard, enabling faster graph rendering and efficient filtering of large-scale Excel-sourced datasets.
+Cognitbotz
+Hyderabad, India
+Software Development Intern
+170 Days
+• Designed and delivered Meet-Ops, an autonomous meeting bot that joins Microsoft Teams calls, captures transcripts,
+and surfaces AI-driven insights via a React.js web dashboard.
+• Built an end-to-end AI summarization pipeline transforming raw transcripts into actionable meeting insights,
+integrated with backend REST APIs.
+• Deployed cloud-integrated services using Docker, PostgreSQL, and Microsoft Teams API; implemented
+JWT-based authentication for secure persistent data storage.
+• Set up a CI/CD pipeline using GitHub Actions to automate containerised deployments, reducing manual deployment
+overhead.
+Projects
+OpenViz — Generative AI Analytics Platform | React 19, TypeScript, Vega-Lite, Llama 4, Groq SDK, Arquero
+• Architected a React 19 & Vega-Lite visualization engine with a hybrid drag-and-drop / natural-language interface
+powered by Llama 4 via Groq SDK, enabling prompt-driven chart generation.
+• Implemented a client-side RAG pipeline with Arquero for instant data profiling and context-aware chart suggestions,
+with text embeddings and chunking strategies ensuring zero-latency, privacy-preserving interactions.
+• Applied prompt engineering techniques to optimise LLM output structure for reliable Vega-Lite spec generation.
+AI-Powered Agent Builder (Agentic RAG) | Pydantic AI, LangChain, Crawl4AI, Supabase pgvector, Python
+• Architected a conversational AI system generating production-ready Pydantic AI agents, achieving an 85% success
+rate for synthesised agent code.
+
+• Built an automated ingestion pipeline using Crawl4AI to scrape and index documentation into Supabase pgvector
+with optimised chunking strategies, enabling high-fidelity semantic search for context retrieval.
+• Integrated LangChain orchestration layer for multi-step reasoning and tool-use chaining across generated agents.
+• Implemented streaming LLM responses via the OpenAI-compatible Groq API for low-latency agent interaction.
+SAP Invoice Consolidation | Python, Nanonets OCR, PyMuPDF, Groq API, Prompt Engineering, openpyxl
+• Engineered an AI document-processing pipeline combining Nanonets OCR for high-accuracy PDF extraction and
+Groq API with structured prompt engineering for intelligent field parsing, producing SAP-ready Excel output.
+• Developed a Tkinter desktop application with multi-page PDF handling, vendor validation, and dynamic tax-code
+derivation logic to ensure full SAP compliance.
+Meet-Ops — Meeting Automation System | Microsoft Teams API, React.js, TypeScript, Docker, PostgreSQL
+• Built an autonomous meeting assistant bot that joins Teams calls, captures and stores transcripts, and surfaces
+AI-generated summaries through a connected React dashboard.
+• Integrated backend REST APIs with cloud services (Docker Hub, AWS); implemented AI summarisation with Hugging
+Face Transformers for actionable insights.
+Live Missile Trajectory Visualisation & Report Generation | React.js, Python, FastAPI, WebSockets
+• Developed a real-time missile trajectory visualisation system for DRDO, processing live simulation data and rendering it
+dynamically on a React.js front end via FastAPI + WebSocket services.
+• Built Python backend pipelines for automated data ingestion, processing, and mission analysis report generation.
+Education
+Vignan Institute of Technology and Science
+Hyderabad, India
+Bachelor of Technology — Computer Science and Engineering (CSE)
+Graduated 2024
+• CGPA: 7.5 / 10
+Telangana State Board
+Telangana, India
+12th Grade (Intermediate)
+2020
+• Score: 84.5%
+Certifications
+PCAP — Programming Essentials in Python (Cisco / Python Institute)
+PSAP — Programming Essentials in Python – Advanced (Python Institute)
+CPA — Programming Essentials in C++ (Cisco / C Institute)
+CLA — Programming Essentials in C (Cisco / C Institute)

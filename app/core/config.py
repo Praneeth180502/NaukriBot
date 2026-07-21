@@ -24,6 +24,18 @@ class AppConfig(BaseModel):
     log_level: str = "INFO"
 
 
+class ChatbotAnswersConfig(BaseModel):
+    auto_answer: bool = True
+    total_experience_years: float = 1.0
+    notice_period_days: int = 0
+    current_ctc_lpa: str = "4"
+    expected_ctc_lpa: str = "6"
+    current_location: str = "Hyderabad"
+    willing_to_relocate: bool = True
+    highest_qualification: str = "B.Tech"
+    default_text: str = "Yes"
+
+
 class NaukriConfig(BaseModel):
     email: str = ""
     password: str = ""
@@ -32,6 +44,9 @@ class NaukriConfig(BaseModel):
     crawl_interval_minutes: int = 15
     max_jobs_per_cycle: int = 100
     headless: bool = True
+    auto_answer_chatbot: bool = True
+    chatbot_answers: ChatbotAnswersConfig = ChatbotAnswersConfig()
+
 
 
 class SearchConfig(BaseModel):

@@ -21,8 +21,8 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - NAUKRI_EMAIL=${NAUKRI_EMAIL:-}
       - NAUKRI_PASSWORD=${NAUKRI_PASSWORD:-}
-      # Playwright headless
-      - PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+      # Playwright browsers path
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

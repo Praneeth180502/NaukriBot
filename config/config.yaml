@@ -12,12 +12,23 @@ naukri:
   email: "apraneethreddy20891a0502@gmail.com"
   password: "Naukri@1805"
   profile_url: "https://www.naukri.com/mnjuser/profile"
-  resume_path: "data/Praneeth fullstackai resume.pdf"   # local path to your PDF resume
+  resume_path: "data/Praneeth fullstackai  Resume.pdf"   # local path to your PDF resume
   # How often to search (minutes)
   crawl_interval_minutes: 15
   # Max jobs per search cycle
   max_jobs_per_cycle: 100
   headless: true
+  auto_answer_chatbot: true
+  chatbot_answers:
+    auto_answer: true
+    total_experience_years: 1.2
+    notice_period_days: 0
+    current_ctc_lpa: "4"
+    expected_ctc_lpa: "6"
+    current_location: "Hyderabad"
+    willing_to_relocate: true
+    highest_qualification: "B.Tech"
+    default_text: "Yes"
 
 # --- Search parameters ---
 search:

@@ -61,15 +61,14 @@ class ParsedResume:
 class ResumeParser:
     """Extracts structured information from a PDF resume."""
 
-    # Section header patterns
     SECTION_PATTERNS = {
-        "contact": r"(contact|personal\s+info)",
-        "summary": r"(summary|objective|profile|about\s+me)",
-        "skills": r"(skills?|technical\s+skills?|competencies|expertise)",
-        "experience": r"(experience|work\s+history|employment|positions?)",
-        "education": r"(education|academics?|qualification)",
-        "projects": r"(projects?|portfolio)",
-        "certifications": r"(certifications?|courses?|training)",
+        "contact": r"^\s*(contact|personal\s+info)\s*$",
+        "summary": r"^\s*(professional\s+)?(summary|objective|profile|about\s+me)\s*$",
+        "skills": r"^\s*(technical\s+)?(skills?|competencies|expertise)\s*$",
+        "experience": r"^\s*(work\s+)?(experience|history|employment|positions?)\s*$",
+        "education": r"^\s*(education|academics?|qualification)\s*$",
+        "projects": r"^\s*(projects?|portfolio)\s*$",
+        "certifications": r"^\s*(certifications?|courses?|training)\s*$",
     }
 
     EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
@@ -244,7 +243,7 @@ class ResumeParser:
         """Calculate total years of professional experience."""
         # Try parsing from explicit mentions first
         exp_match = re.search(
-            r"(\d+(?:\.\d+)?)\s*(?:\+)?\s*years?\s+(?:of\s+)?(?:experience|exp)",
+            r"(\d+(?:\.\d+)?)\s*(?:\+)?\s*(?:years?|yrs?|yr)\s+(?:of\s+)?(?:[a-z\s]+)?(?:experience|exp)",
             text,
             re.IGNORECASE,
         )

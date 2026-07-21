@@ -242,7 +242,7 @@ class JobHunterAgent:
                 # Attempt auto-apply for top 5 high-match jobs per cycle
                 for job in high_match[:5]:
                     try:
-                        success = await scraper.auto_apply(job.apply_url)
+                        success = await scraper.auto_apply(job.apply_url, profile_data=profile)
                         if success:
                             self.mark_applied(
                                 job.id,
@@ -282,6 +282,11 @@ class JobHunterAgent:
                     existing = db.query(Job).filter_by(external_id=raw.external_id).first()
                     if existing:
                         continue
+
+                    exp_data = self._parse_experience(raw.experience)
+                    if exp_data["experience_min"] >= 2.0:
+                        continue
+
                     job = Job(
                         external_id=raw.external_id,
                         title=raw.title,
@@ -294,7 +299,7 @@ class JobHunterAgent:
                         job_type=raw.job_type,
                         source=raw.source,
                         posted_date=self._parse_date(raw.posted_date),
-                        **self._parse_experience(raw.experience),
+                        **exp_data,
                     )
                     db.add(job)
                     db.flush()             # assigns job.id

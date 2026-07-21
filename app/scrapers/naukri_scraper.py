@@ -28,6 +28,7 @@ except ImportError:
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.services.chatbot_handler import ChatbotHandler
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,7 +79,6 @@ class NaukriScraper:
     def __init__(self):
         self._browser: Optional[Browser] = None
         self._context: Optional[BrowserContext] = None
-        self._page: Optional[Page] = None
         self._pw = None
         self._logged_in = False
 
@@ -214,8 +214,8 @@ class NaukriScraper:
             page = await self._new_page()
             await page.goto(self.PROFILE_URL, wait_until="domcontentloaded", timeout=20_000)
             if "login" not in page.url.lower():
-                self._page = page
                 self._logged_in = True
+                await page.close()
                 return True
             await page.close()
             return False
@@ -296,7 +296,7 @@ class NaukriScraper:
                     )
                     logger.error(f"  input: {attrs}")
                 await page.screenshot(path=str(debug_dir / "login_failed.png"), full_page=True)
-                self._page = page
+                await page.close()
                 return False
 
             await email_el.click()
@@ -310,7 +310,7 @@ class NaukriScraper:
             if not pass_el:
                 logger.error("Could not find password input")
                 await page.screenshot(path=str(debug_dir / "login_no_pass.png"), full_page=True)
-                self._page = page
+                await page.close()
                 return False
 
             await pass_el.click()
@@ -348,16 +348,16 @@ class NaukriScraper:
             # Verify success — we should be away from the login page
             if "login" not in current_url.lower() and "nlogin" not in current_url.lower():
                 logger.success(f"Naukri login successful — at {current_url}")
-                self._page = page
                 self._logged_in = True
                 await self._save_session()
+                await page.close()
                 return True
             else:
                 # Check for error message on page
                 error_text = await self._safe_text(page, ".error-msg, .errorMsg, [class*='error']")
                 logger.error(f"Login failed — still at {current_url}. Error: {error_text or 'unknown'}")
-                self._page = page
                 self._logged_in = False
+                await page.close()
                 return False
 
         except Exception as e:
@@ -366,7 +366,7 @@ class NaukriScraper:
                 await page.screenshot(path=str(debug_dir / "login_exception.png"), full_page=True)
             except Exception:
                 pass
-            self._page = page
+            await page.close()
             return False
 
     async def _find_element(self, page, selectors: list[str], label: str):
@@ -432,9 +432,16 @@ class NaukriScraper:
         if not self._logged_in:
             await self.login()
 
-        page = await self._context.new_page()
+        page = await self._new_page()
         try:
-            await page.goto(self.PROFILE_URL, wait_until="networkidle", timeout=30_000)
+            await page.goto(self.PROFILE_URL, wait_until="domcontentloaded", timeout=30_000)
+            try:
+                await page.wait_for_selector(
+                    "span.user-name, h1.profileName, .nameInfo h1, .profile-body, .profileSummary",
+                    timeout=10_000,
+                )
+            except PWTimeout:
+                logger.warning("Profile page content took too long to render, trying to scrape anyway")
             await asyncio.sleep(2)
 
             # Name
@@ -474,7 +481,7 @@ class NaukriScraper:
         if not self._logged_in:
             await self.login()
 
-        page = await self._context.new_page()
+        page = await self._new_page()
         jobs: List[RawJob] = []
 
         try:
@@ -487,7 +494,7 @@ class NaukriScraper:
             if "login" in page.url.lower():
                 await page.close()
                 await self.login()
-                page = await self._context.new_page()
+                page = await self._new_page()
                 await page.goto(search_url, wait_until="domcontentloaded", timeout=30_000)
                 await asyncio.sleep(2)
 
@@ -514,7 +521,7 @@ class NaukriScraper:
 
     async def get_job_detail(self, job_url: str) -> Optional[str]:
         """Fetch full job description from detail page."""
-        page = await self._context.new_page()
+        page = await self._new_page()
         try:
             await page.goto(job_url, wait_until="domcontentloaded", timeout=20_000)
             await asyncio.sleep(1)
@@ -563,7 +570,7 @@ class NaukriScraper:
         "apply now", "1-click", "easy apply", "apply",
     ]
 
-    async def auto_apply(self, job_url: str) -> bool:
+    async def auto_apply(self, job_url: str, profile_data=None) -> bool:
         """
         Attempts to automatically apply to a job if:
         1. It has a direct Naukri apply button (not redirecting to company site).
@@ -663,19 +670,21 @@ class NaukriScraper:
             # Click Apply — use plain click then immediately watch what appears
             await apply_btn.click()
 
+            cb_handler = ChatbotHandler(page, profile_data=profile_data)
+
             # Short wait then check for chatbot BEFORE anything else
             await asyncio.sleep(1.5)
-            if await self._detect_chatbot(page):
-                logger.info(f"Chatbot questionnaire detected for {job_url} — skipping (requires manual answers).")
-                return False
+            if await cb_handler.is_chatbot_visible():
+                logger.info(f"Chatbot questionnaire detected for {job_url} — starting auto-answer sequence...")
+                return await cb_handler.process_and_answer()
 
             # Give page a little more time to navigate or update
             await asyncio.sleep(2)
 
             # Check if chatbot appeared after the additional wait
-            if await self._detect_chatbot(page):
-                logger.info(f"Chatbot questionnaire detected (delayed) for {job_url} — skipping.")
-                return False
+            if await cb_handler.is_chatbot_visible():
+                logger.info(f"Chatbot questionnaire detected (delayed) for {job_url} — starting auto-answer sequence...")
+                return await cb_handler.process_and_answer()
 
             # Check if page navigated to an applied/confirmation URL
             current_url = page.url.lower()
@@ -693,9 +702,9 @@ class NaukriScraper:
                         logger.success(f"Apply confirmed — button now reads: {updated_text!r}")
                         return True
                     # Final chatbot check after _find_element (which takes a few seconds)
-                    if await self._detect_chatbot(page):
-                        logger.info(f"Chatbot detected after button search for {job_url} — skipping.")
-                        return False
+                    if await cb_handler.is_chatbot_visible():
+                        logger.info(f"Chatbot detected after button search for {job_url} — starting auto-answer sequence...")
+                        return await cb_handler.process_and_answer()
             except Exception:
                 pass
 
@@ -772,33 +781,12 @@ class NaukriScraper:
 
     # ── Chatbot detection ─────────────────────────────────────────────────
 
-    async def _detect_chatbot(self, page) -> bool:
+    async def _detect_chatbot(self, page, profile_data=None) -> bool:
         """
         Detect whether Naukri opened a chatbot/questionnaire panel after Apply was clicked.
-        Returns True if a chatbot panel is visible — caller should skip this job.
-        Does NOT interact with the chatbot at all.
         """
-        CHATBOT_SIGNALS = [
-            # Panel/container selectors
-            ".chatbot-container",
-            "[class*='chatbot' i]",
-            "[class*='ChatBot' i]",
-            ".apply-chatbot",
-            "[class*='apply-chat' i]",
-            ".naukri-chat",
-            # Text input inside a panel (strong indicator of a questionnaire)
-            "input[placeholder*='Type message' i]",
-            "textarea[placeholder*='Type message' i]",
-        ]
-        for sel in CHATBOT_SIGNALS:
-            try:
-                el = await page.query_selector(sel)
-                if el and await el.is_visible():
-                    logger.debug(f"Chatbot panel detected via: {sel}")
-                    return True
-            except Exception:
-                continue
-        return False
+        cb_handler = ChatbotHandler(page, profile_data=profile_data)
+        return await cb_handler.is_chatbot_visible()
 
 
 

@@ -9,6 +9,7 @@ import asyncio
 import sys
 from pathlib import Path
 from app.scrapers.naukri_scraper import NaukriScraper
+from app.services.chatbot_handler import ChatbotHandler
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -104,21 +105,23 @@ async def test_job_url(job_url: str):
             await page.screenshot(path=str(img_clicked))
             logger.info(f"Step 2: After-click screenshot saved to {img_clicked}")
 
-            # FIRST: If Naukri opened a chatbot/questionnaire panel — skip immediately
-            if await scraper._detect_chatbot(page):
-                logger.warning("Chatbot questionnaire detected — skipping this job (requires manual answers).")
+            cb_handler = ChatbotHandler(page)
+
+            # FIRST: If Naukri opened a chatbot/questionnaire panel — initiate auto-answer
+            if await cb_handler.is_chatbot_visible():
+                logger.info("Chatbot questionnaire detected — initiating auto-answer sequence...")
                 img_chatbot = screenshots_dir / "2b_chatbot_detected.png"
                 await page.screenshot(path=str(img_chatbot))
                 logger.info(f"Chatbot screenshot saved to {img_chatbot}")
-                return False
+                return await cb_handler.process_and_answer()
 
             # Give page more time to navigate or update
             await asyncio.sleep(2)
 
             # Second chatbot check after additional wait
-            if await scraper._detect_chatbot(page):
-                logger.warning("Chatbot questionnaire detected (delayed) — skipping this job.")
-                return False
+            if await cb_handler.is_chatbot_visible():
+                logger.info("Chatbot questionnaire detected (delayed) — initiating auto-answer sequence...")
+                return await cb_handler.process_and_answer()
 
             current_url = page.url.lower()
             if any(kw in current_url for kw in ["applied", "application", "thankyou", "thank-you", "success", "confirm"]):
