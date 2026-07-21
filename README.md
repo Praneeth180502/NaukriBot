@@ -10,6 +10,7 @@ External Sources → Ingestion Layer → Intelligence Core → Action Layer → 
 
 - **Profile Intelligence**: Auto-extracts skills from resume + Naukri profile
 - **Job Discovery**: Crawls Naukri every 15 minutes via Playwright
+- **Automated Chatbot Answering**: Intercepts and auto-answers job application questionnaires based on your profile
 - **AI Matching**: sentence-transformers/all-MiniLM-L6-v2 for semantic similarity
 - **Ranking Engine**: Weighted formula (40% resume + 20% skill + 15% location + 15% exp + 10% company)
 - **Telegram Bot**: Real-time alerts + /commands
