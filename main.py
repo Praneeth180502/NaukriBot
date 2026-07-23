@@ -100,36 +100,77 @@ async def _run(no_telegram: bool = False, once: bool = False, bootstrap_only: bo
 async def _run_telegram(agent):
     """Run Telegram bot in polling mode with network-aware retry."""
     from app.services.telegram_service import TelegramService
-    from app.core.network import wait_for_network
+    from app.core.network import async_is_network_available, wait_for_network
     from telegram.error import NetworkError as TelegramNetworkError
 
     svc = TelegramService()
     app = svc.build_application(agent)
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling(drop_pending_updates=True)
-    logger.success("Telegram polling started")
+
+    # Robust startup retry loop
+    while True:
+        try:
+            if not await async_is_network_available():
+                logger.warning("No network detected at startup. Waiting for connectivity before starting Telegram...")
+                if not await wait_for_network(initial_delay=10.0, max_delay=120.0, max_attempts=40):
+                    logger.error("Network still unavailable. Retrying Telegram bot startup in 60s...")
+                    await asyncio.sleep(60)
+                    continue
+
+            await app.initialize()
+            await app.start()
+            await app.updater.start_polling(drop_pending_updates=True)
+            logger.success("Telegram polling started")
+            break
+        except (TelegramNetworkError, Exception) as e:
+            logger.warning(f"Error starting Telegram bot ({type(e).__name__}): {e}. Retrying in 15s...")
+            try:
+                await app.updater.stop()
+            except Exception:
+                pass
+            try:
+                await app.stop()
+            except Exception:
+                pass
+            try:
+                await app.shutdown()
+            except Exception:
+                pass
+            await asyncio.sleep(15)
 
     # Keep alive — detect network drops and pause polling until restored
     try:
-        from app.core.network import async_is_network_available, wait_for_network
         while True:
             await asyncio.sleep(30)
             if not await async_is_network_available():
                 logger.warning("Network drop detected. Pausing Telegram polling to avoid log spam...")
-                await app.updater.stop()
+                try:
+                    await app.updater.stop()
+                except Exception as e:
+                    logger.warning(f"Error while stopping updater: {e}")
                 
                 # Block until network restores
                 if await wait_for_network(initial_delay=15.0, max_delay=300.0, max_attempts=40):
                     logger.success("Network restored. Resuming Telegram polling...")
-                    await app.updater.start_polling(drop_pending_updates=True)
+                    try:
+                        await app.updater.start_polling(drop_pending_updates=True)
+                    except Exception as e:
+                        logger.error(f"Error while restarting polling: {e}")
                 else:
                     logger.error("Network could not be restored. Giving up on Telegram polling.")
                     break
     except asyncio.CancelledError:
-        await app.updater.stop()
-        await app.stop()
-        await app.shutdown()
+        try:
+            await app.updater.stop()
+        except Exception:
+            pass
+        try:
+            await app.stop()
+        except Exception:
+            pass
+        try:
+            await app.shutdown()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

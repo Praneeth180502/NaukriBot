@@ -26,7 +26,6 @@ from rich import box
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-os.environ = __import__("os").environ
 import os
 os.environ.setdefault("CONFIG_PATH", "config/config.yaml")
 
@@ -197,7 +196,7 @@ def stats():
     console.print(f"  Total jobs tracked  : [bold]{total_jobs}[/bold]")
     console.print(f"  Scored jobs         : [bold]{scored_jobs}[/bold]")
     console.print(f"  High match (≥70)    : [bold green]{high_match}[/bold green]")
-    console.print(f"  Average score       : [bold yellow]{avg_score:.1f if avg_score else 0}[/bold yellow]")
+    console.print(f"  Average score       : [bold yellow]{(avg_score or 0.0):.1f}[/bold yellow]")
 
     console.rule("[bold cyan]Applications[/bold cyan]")
     for status, count in app_rows:

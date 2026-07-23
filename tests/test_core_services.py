@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 class TestSkillTaxonomy:
     def test_known_skill_returns_category(self):
-        from app.utils.skill_taxonomy import categorize_skill
+        from app.services.skill_taxonomy import categorize_skill
         assert categorize_skill("Python") == "language"
         assert categorize_skill("FastAPI") == "backend"
         assert categorize_skill("React") == "frontend"
@@ -28,22 +28,22 @@ class TestSkillTaxonomy:
         assert categorize_skill("AWS") == "cloud"
 
     def test_unknown_skill_returns_other(self):
-        from app.utils.skill_taxonomy import categorize_skill
+        from app.services.skill_taxonomy import categorize_skill
         assert categorize_skill("SomeMadeUpThing") == "other"
 
     def test_case_insensitive_categorize(self):
-        from app.utils.skill_taxonomy import categorize_skill
+        from app.services.skill_taxonomy import categorize_skill
         assert categorize_skill("python") == "language"
         assert categorize_skill("FASTAPI") == "backend"
 
     def test_normalize_skill(self):
-        from app.utils.skill_taxonomy import normalize_skill
+        from app.services.skill_taxonomy import normalize_skill
         assert normalize_skill("python") == "Python"
         assert normalize_skill("fastapi") == "FastAPI"
         assert normalize_skill("react") == "React"
 
     def test_all_skills_lower_populated(self):
-        from app.utils.skill_taxonomy import ALL_SKILLS_LOWER
+        from app.services.skill_taxonomy import ALL_SKILLS_LOWER
         assert "python" in ALL_SKILLS_LOWER
         assert "fastapi" in ALL_SKILLS_LOWER
         assert len(ALL_SKILLS_LOWER) > 50

@@ -20,9 +20,9 @@ from app.core.logging import logger
 
 # Hosts we probe — if ANY resolves, we consider the network healthy
 _PROBE_HOSTS = [
-    ("api.telegram.org", 443),
     ("8.8.8.8", 53),          # Google DNS — numeric, no DNS needed
     ("1.1.1.1", 53),          # Cloudflare DNS — numeric, no DNS needed
+    ("9.9.9.9", 53),          # Quad9 DNS — numeric, no DNS needed
 ]
 
 _CONNECT_TIMEOUT = 3.0   # seconds per probe attempt
@@ -50,8 +50,25 @@ def is_network_available() -> bool:
 
 
 async def async_is_network_available() -> bool:
-    """Async-safe wrapper — runs the blocking probe in the thread pool."""
-    return await asyncio.to_thread(is_network_available)
+    """
+    Returns True if at least one probe host is reachable.
+    Uses async socket connection to avoid using or blocking the thread pool.
+    """
+    for host, port in _PROBE_HOSTS:
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout=_CONNECT_TIMEOUT
+            )
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return True
+        except Exception:
+            continue
+    return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────

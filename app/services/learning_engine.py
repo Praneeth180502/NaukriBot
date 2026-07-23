@@ -151,7 +151,12 @@ class LearningEngine:
 
         if company:
             comp = company.lower()
-            boost += min(5.0, max(-5.0, prefs["company_scores"].get(comp, 0.0) * 2))
+            comp_score = 0.0
+            for pref_comp, score in prefs["company_scores"].items():
+                if pref_comp in comp or comp in pref_comp:
+                    comp_score = score
+                    break
+            boost += min(5.0, max(-5.0, comp_score * 2))
 
         if location:
             loc = location.lower()
