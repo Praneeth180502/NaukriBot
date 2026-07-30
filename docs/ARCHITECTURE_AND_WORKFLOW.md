@@ -1,10 +1,12 @@
-# AI Job Hunter Agent (Naukribot)
+# Naukribot — System Architecture & Workflow Documentation
 
-Production-grade autonomous job discovery, matching, auto-application, and tracking system for Naukri.com.
+This document provides complete technical specifications, architecture diagrams, and phase-by-phase workflow flowcharts for **Naukribot** (AI Job Hunter Agent).
 
 ---
 
-## 🏗️ System Architecture
+## 🏛️ 1. High-Level System Architecture
+
+The system follows an event-driven, agentic orchestrator architecture. The central `JobHunterAgent` coordinates scraping, parsing, vector embedding, job scoring, auto-application, and real-time alerting.
 
 ```mermaid
 flowchart TB
@@ -63,7 +65,9 @@ flowchart TB
 
 ---
 
-## 🔄 Detailed System Workflow
+## 🔲 2. System Workflow Flowchart (Step-by-Step)
+
+The diagram below maps every step executed by Naukribot from startup to automated job application:
 
 ```mermaid
 flowchart TD
@@ -109,67 +113,51 @@ flowchart TD
 
 ---
 
-## 🕵️ Scraping, Stealth & Session Security
+## 📘 3. Phase Specifications
 
-- **Playwright + Real Chrome:** Uses Playwright to launch a real Google Chrome channel (`channel="chrome"`) instead of standard headless Chromium.
-- **`playwright-stealth` & Custom JS Injection:** Overrides `navigator.webdriver` to `undefined`, masks `window.chrome`, spoofs OS platform (`Win32`), `languages`, and `plugins`.
-- **Session Cache:** Caches authenticated login cookies in `data/cache/naukri_session.json`. Re-uses session across runs to prevent frequent logins.
-- **Automated Screening Handler (`ChatbotHandler`):** Intercepts and auto-answers recruiter questionnaire popups during application submission based on candidate profile skills.
+### Phase 1: System Bootstrap & Setup
+* **`init_db()`**: Bootstraps SQLite tables (`jobs`, `job_applications`, `candidate_profiles`, `user_skills`) using SQLAlchemy ORM.
+* **Resume Extraction:** `ResumeParser` extracts text from `.pdf`/`.docx` files using PyMuPDF and SpaCy NER models.
+* **Vector Model Initialization:** `EmbeddingEngine` pre-loads `sentence-transformers/all-MiniLM-L6-v2` into FAISS vector memory.
 
----
+### Phase 2: Scraping & Job Discovery
+* **Real Browser Control:** Playwright launches Google Chrome (`channel="chrome"`).
+* **Stealth Evasion:** Overrides `navigator.webdriver`, hides `window.chrome`, spoofs `Win32` platform, and mocks permissions APIs.
+* **Cookie Caching:** Restores cached session cookies from `data/cache/naukri_session.json` to prevent re-logins.
+* **Matrix Querying:** Iterates over combinations of target roles, skills, and locations.
 
-## 🔍 Uncovering "Hidden Jobs" on Naukri
+### Phase 3: Filtering & Database Persistence
+* **Deduplication:** Filters out jobs that already exist in SQLite based on `external_id`.
+* **Criteria Enforcement:** Skips jobs requiring experience outside configured bounds (`experience_min`, `experience_max`).
+* **Session Safety:** Uses plain `JobData` dataclasses to pass data safely across async threads without `DetachedInstanceError`.
 
-1. **Exhaustive Query Slicing (`freshness=1` & `qp`):** Standard search truncates after 1,000 results (page 50). Use 24-hour freshness filters (`freshness=1`) and precise Boolean strings (`qp="Machine Learning" AND "Python"`).
-2. **Profile Recommendation Feed:** Scrapes `/mnjuser/recommendedjobs` which surfaces roles customized to your resume tags that don't appear in public search.
-3. **Daily Resume Activity Touch:** Re-uploading your resume daily keeps your profile marked as active (`Active in last 24h`), placing you in recruiter outbound search results.
-4. **Google X-Ray Search:** Query direct unindexed pages via Google: `site:naukri.com/job-listings "Machine Learning Engineer"`.
+### Phase 4: AI Matching & Ranking Engine
+* **Semantic Match (40%):** Calculates cosine similarity between vector embeddings of job descriptions and candidate resume text via FAISS.
+* **Skill Fit Match (20%):** Matches job required skills against candidate skill taxonomy.
+* **Location & Experience Match (30%):** Compares preferred cities and years of experience.
+* **Freshness & Feedback Boost (10%):** Adds score bonuses for jobs posted in the last 24h and applies preference boosts learned by `LearningEngine`.
 
----
-
-## 🛠️ Stack & Dependencies
-
-| Layer | Technology |
-|---|---|
-| **Web Automation** | Playwright, `playwright-stealth`, BeautifulSoup4 |
-| **Embeddings & AI** | `sentence-transformers/all-MiniLM-L6-v2`, FAISS |
-| **Resume Parsing** | PyMuPDF, spaCy |
-| **API & Server** | FastAPI, Uvicorn |
-| **Database** | SQLite, SQLAlchemy |
-| **Scheduler** | APScheduler |
-| **Alerts & Bot** | `python-telegram-bot` |
-| **Containerization** | Docker, Docker Compose |
+### Phase 5: Auto-Apply & Notifications
+* **Direct Apply Check:** Filters jobs for 1-Click direct apply buttons.
+* **Questionnaire Solver:** `ChatbotHandler` automatically responds to modal forms and recruiter screening prompts using candidate profile data.
+* **Instant Alerts:** Sends interactive Telegram messages detailing match scores, missing skills, and application status.
 
 ---
 
-## 🚀 Quick Start
+## 🕵️ 4. Uncovering Hidden Jobs on Naukri
 
-1. **Configure Environment:**
-   ```bash
-   cp config/config.example.yaml config/config.yaml
-   ```
-2. **Run Locally:**
-   ```bash
-   python main.py
-   ```
-3. **Run via Docker:**
-   ```bash
-   docker compose up --build
-   ```
+Naukri search caps results at Page 50 (1,000 listings). Naukribot bypasses this using four specific strategies:
+
+1. **Exhaustive Query Slicing (`freshness=1`):** Appends `freshness=1` parameter to search URLs to capture newly posted jobs within the last 24 hours before they get buried past page 50.
+2. **Boolean Query Parameter (`qp`):** Uses explicit string parameters like `qp="Machine Learning" AND ("Python" OR "PyTorch")` for strict indexing.
+3. **Recommended Engine Feed (`/mnjuser/recommendedjobs`):** Scrapes authenticated candidate recommendation feeds which surface unlisted roles tailored to candidate profile tags.
+4. **Daily Profile Activity Touch:** Re-uploading resume daily bumps `lastUpdatedTimestamp`, keeping candidate profiles visible in recruiter outbound searches.
 
 ---
 
-## 📊 Dashboard & Commands
+## 📂 Related Files
 
-- **Web Dashboard:** `http://localhost:8000`
-
-### Telegram Commands
-| Command | Description |
-|---|---|
-| `/jobs` | Latest matched jobs |
-| `/topjobs` | Top 20 ranked jobs |
-| `/newjobs` | Jobs scraped in last 1 hour |
-| `/stats` | Application statistics & metrics |
-| `/companies` | Top hiring companies list |
-| `/skillgaps` | Identified skill gap analytics |
-
+* **Main Orchestrator:** [`app/agents/job_hunter_agent.py`](file:///c:/Users/prane/Downloads/Naukribot/app/agents/job_hunter_agent.py)
+* **Playwright Scraper:** [`app/scrapers/naukri_scraper.py`](file:///c:/Users/prane/Downloads/Naukribot/app/scrapers/naukri_scraper.py)
+* **Ranking Engine:** [`app/services/ranking_engine.py`](file:///c:/Users/prane/Downloads/Naukribot/app/services/ranking_engine.py)
+* **Telegram Service:** [`app/services/telegram_service.py`](file:///c:/Users/prane/Downloads/Naukribot/app/services/telegram_service.py)
