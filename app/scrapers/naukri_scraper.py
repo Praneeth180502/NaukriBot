@@ -537,6 +537,393 @@ class NaukriScraper:
         finally:
             await page.close()
 
+    # ── Notification Centre ───────────────────────────────────────────────
+
+    # Selectors for the notification bell icon
+    _NOTIF_BELL_SELECTORS = [
+        "a[href*='notification']",
+        "#notification-icon",
+        ".bell-icon",
+        "[data-testid='notification']",
+        "[data-testid='notification-icon']",
+        "li.nI-gNb-not a",
+        ".nI-gNb-notification",
+        "[class*='notification' i][class*='icon' i]",
+        "[class*='notifIcon' i]",
+        "[class*='bell' i]",
+        "a[title*='notification' i]",
+        "span[class*='notification' i]",
+        "i[class*='notification' i]",
+        ".header-notification",
+        "a.notification",
+    ]
+
+    # Selectors for the notification panel/drawer container
+    _NOTIF_PANEL_SELECTORS = [
+        ".notificationWrapper",
+        ".notification-drawer",
+        "#notification-panel",
+        ".notif-list",
+        ".nI-notif-panel",
+        "[class*='notificationPanel' i]",
+        "[class*='notif-panel' i]",
+        "[class*='notification-list' i]",
+        "[class*='notifWrapper' i]",
+        "[role='dialog'][class*='notif' i]",
+        ".notification-container",
+        ".notifications-panel",
+    ]
+
+    # Keywords that identify a notification as containing recommended / matched jobs
+    _JOB_NOTIF_KEYWORDS = [
+        "recommended",
+        "new jobs",
+        "jobs matching",
+        "jobs for you",
+        "based on your profile",
+        "matching your",
+        "job alert",
+        "jobs alert",
+    ]
+
+    async def scrape_notification_jobs(self) -> List[RawJob]:
+        """
+        Navigate to the Naukri notification centre, collect all job URLs
+        from recommended / job-alert notifications, and return a list of
+        RawJob objects (source='naukri_notification').
+
+        Uses layered fallback selectors + debug screenshots so that
+        selector failures are diagnosable without re-running.
+        """
+        if not self._logged_in:
+            await self.login()
+
+        debug_dir = Path("data/cache")
+        debug_dir.mkdir(parents=True, exist_ok=True)
+
+        page = await self._new_page()
+        job_urls: List[str] = []
+
+        try:
+            logger.info("Opening Naukri homepage to access notification centre...")
+            await page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=30_000)
+            await asyncio.sleep(3)
+
+            # Handle redirect to login
+            if "login" in page.url.lower():
+                logger.warning("Redirected to login — re-authenticating before notifications")
+                await page.close()
+                await self.login()
+                page = await self._new_page()
+                await page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=30_000)
+                await asyncio.sleep(3)
+
+            await page.screenshot(
+                path=str(debug_dir / "notif_homepage.png"), full_page=False
+            )
+            logger.debug("Homepage screenshot saved → data/cache/notif_homepage.png")
+
+            # ── Step 1: Click notification bell ──────────────────────────
+            bell = await self._find_element(page, self._NOTIF_BELL_SELECTORS, "notification bell")
+            if not bell:
+                logger.warning("Notification bell not found — trying direct URL fallback")
+                # Some Naukri layouts expose a direct notifications URL
+                await page.goto(
+                    "https://www.naukri.com/notifications",
+                    wait_until="domcontentloaded",
+                    timeout=20_000,
+                )
+                await asyncio.sleep(2)
+            else:
+                await bell.click()
+                await asyncio.sleep(2)
+                logger.debug("Notification bell clicked")
+
+            await page.screenshot(
+                path=str(debug_dir / "notif_panel_open.png"), full_page=False
+            )
+            logger.debug("Notification panel screenshot saved → data/cache/notif_panel_open.png")
+
+            # ── Step 2: Wait for notification panel ──────────────────────
+            panel = None
+            for sel in self._NOTIF_PANEL_SELECTORS:
+                try:
+                    panel = await page.wait_for_selector(sel, timeout=5_000, state="visible")
+                    if panel:
+                        logger.debug(f"Notification panel found via: {sel}")
+                        break
+                except Exception:
+                    continue
+
+            if not panel:
+                logger.warning(
+                    "Notification panel container not detected — "
+                    "will scan full page for job notification links"
+                )
+
+            # ── Step 3: Scroll panel / page to load all notifications ────
+            scroll_target = panel if panel else page
+            for _ in range(6):
+                try:
+                    await page.evaluate(
+                        """(el) => {
+                            if (el && el !== document) {
+                                el.scrollTop += 400;
+                            } else {
+                                window.scrollBy(0, 400);
+                            }
+                        }""",
+                        scroll_target,
+                    )
+                except Exception:
+                    await page.evaluate("window.scrollBy(0, 400)")
+                await asyncio.sleep(0.8)
+
+            await page.screenshot(
+                path=str(debug_dir / "notif_panel_scrolled.png"), full_page=False
+            )
+
+            # ── Step 4: Collect job URLs from notification cards ──────────
+            # Strategy A: look for anchors that link to job-listing or job detail pages
+            job_link_selectors = [
+                "a[href*='/job-listings']",
+                "a[href*='-jobs-in-']",
+                "a[href*='/jobs/']",
+                "a[href*='naukri.com/'][href*='-jobs']",
+                ".notification-item a[href]",
+                ".notificationCard a[href]",
+                ".nI-gNb-nCard a[href]",
+                "[class*='notif' i] a[href]",
+                "[class*='notification' i] a[href]",
+            ]
+
+            seen_urls: set = set()
+            for sel in job_link_selectors:
+                try:
+                    links = await page.query_selector_all(sel)
+                    for link in links:
+                        href = await link.get_attribute("href") or ""
+                        if not href:
+                            continue
+                        if not href.startswith("http"):
+                            href = self.BASE_URL + href
+                        # Only include Naukri job/listing URLs
+                        if any(
+                            kw in href
+                            for kw in ["/job-listings", "-jobs-in-", "/jobs/", "-jobs?"]
+                        ) and href not in seen_urls:
+                            # Check nearby text for job-related keyword
+                            try:
+                                parent_text = await page.evaluate(
+                                    "(el) => el.closest('[class]')?.innerText || ''", link
+                                )
+                                is_job_notif = any(
+                                    kw in parent_text.lower()
+                                    for kw in self._JOB_NOTIF_KEYWORDS
+                                ) or True   # always include valid job URLs from notif panel
+                            except Exception:
+                                is_job_notif = True
+
+                            if is_job_notif:
+                                seen_urls.add(href)
+                                job_urls.append(href)
+                except Exception as e:
+                    logger.debug(f"Notif link selector '{sel}' error: {e}")
+
+            # Strategy B: look for "View Jobs" / "Apply" CTAs inside notification cards
+            cta_selectors = [
+                "button:has-text('View Jobs')",
+                "a:has-text('View Jobs')",
+                "a:has-text('View All Jobs')",
+                "button:has-text('View All Jobs')",
+                "[class*='notif' i] button",
+                "[class*='notification' i] [class*='cta' i]",
+            ]
+            for sel in cta_selectors:
+                try:
+                    ctas = await page.query_selector_all(sel)
+                    for cta in ctas:
+                        href = await cta.get_attribute("href") or ""
+                        if href and href not in seen_urls:
+                            if not href.startswith("http"):
+                                href = self.BASE_URL + href
+                            seen_urls.add(href)
+                            job_urls.append(href)
+                except Exception:
+                    pass
+
+            # Strategy C: dedicated notifications page URL
+            if not job_urls:
+                logger.info(
+                    "No job URLs from bell panel — trying /notifications page directly"
+                )
+                await page.goto(
+                    "https://www.naukri.com/notifications",
+                    wait_until="domcontentloaded",
+                    timeout=20_000,
+                )
+                await asyncio.sleep(2)
+                for _ in range(6):
+                    await page.evaluate("window.scrollBy(0, 400)")
+                    await asyncio.sleep(0.6)
+                links = await page.query_selector_all("a[href]")
+                for link in links:
+                    href = await link.get_attribute("href") or ""
+                    if not href.startswith("http"):
+                        href = self.BASE_URL + href
+                    if (
+                        any(kw in href for kw in ["/job-listings", "-jobs-in-", "/jobs/"])
+                        and href not in seen_urls
+                    ):
+                        seen_urls.add(href)
+                        job_urls.append(href)
+
+            logger.info(f"Notification centre: {len(job_urls)} unique job URL(s) found")
+            await page.screenshot(
+                path=str(debug_dir / "notif_links_found.png"), full_page=False
+            )
+
+        except Exception as e:
+            logger.error(f"Notification scrape error: {e}")
+            try:
+                await page.screenshot(
+                    path=str(debug_dir / "notif_error.png"), full_page=False
+                )
+            except Exception:
+                pass
+        finally:
+            await page.close()
+
+        # ── Step 5: Visit each job URL and extract a RawJob ──────────────
+        raw_jobs: List[RawJob] = []
+        for url in job_urls:
+            try:
+                job = await self._parse_job_detail_page(url)
+                if job:
+                    raw_jobs.append(job)
+                    logger.debug(f"Notification job parsed: {job.title} @ {job.company}")
+                await asyncio.sleep(1.5)   # polite crawl delay
+            except Exception as e:
+                logger.warning(f"Failed to parse notification job {url}: {e}")
+
+        logger.info(
+            f"Notification centre scrape complete: {len(raw_jobs)} RawJob(s) extracted"
+        )
+        return raw_jobs
+
+    async def _parse_job_detail_page(self, job_url: str) -> Optional[RawJob]:
+        """
+        Navigate to a Naukri job detail page and build a RawJob from it.
+        Falls back gracefully if any field is missing.
+        Source is always 'naukri_notification'.
+        """
+        page = await self._new_page()
+        try:
+            await page.goto(job_url, wait_until="domcontentloaded", timeout=25_000)
+            await asyncio.sleep(1.5)
+
+            # Handle login redirect
+            if "login" in page.url.lower():
+                await page.close()
+                await self.login()
+                page = await self._new_page()
+                await page.goto(job_url, wait_until="domcontentloaded", timeout=25_000)
+                await asyncio.sleep(1.5)
+
+            # Title
+            title = await self._safe_text(
+                page,
+                "h1.jd-header-title, h1[class*='jobTitle' i], "
+                ".jd-header h1, .job-title, h1",
+            )
+            if not title:
+                logger.debug(f"No title found on {job_url} — skipping")
+                return None
+
+            # Company
+            company = await self._safe_text(
+                page,
+                "a.comp-name, [class*='companyName' i], "
+                ".company-name, .jd-header-comp-name, "
+                "[class*='company' i] a",
+            )
+
+            # Location
+            location = await self._safe_text(
+                page,
+                ".location, [class*='location' i], "
+                ".jd-stats .location, span[class*='loc' i]",
+            )
+
+            # Experience
+            experience = await self._safe_text(
+                page,
+                ".experience, [class*='experience' i], "
+                ".exp, .jd-stats .exp",
+            )
+
+            # Salary
+            salary = await self._safe_text(
+                page,
+                ".salary, [class*='salary' i], "
+                ".jd-stats .salary",
+            )
+
+            # Description
+            description = await self._safe_text(
+                page,
+                ".job-desc, .jobDescriptionText, "
+                "#job-desc, .description, [class*='job-desc' i]",
+            )
+
+            # Skills from chip/tag elements
+            skill_tags = await page.query_selector_all(
+                ".chip, .tag, .keySkill, "
+                "[class*='chip' i], [class*='skill' i] li, "
+                ".techStack span",
+            )
+            skills = []
+            for tag in skill_tags:
+                s = (await tag.inner_text()).strip()
+                if s and len(s) < 60:   # ignore long blocks of text
+                    skills.append(s)
+
+            # Posted date
+            posted_date = await self._safe_text(
+                page,
+                ".jd-top-head .stat .date, "
+                ".jd-header-content .posted-date, "
+                "[class*='posted' i], [class*='freshness' i], "
+                ".stat-item, .jd-stats span, .job-post-day",
+            )
+
+            # Stable external ID from URL
+            external_id = (
+                re.sub(r"[^a-zA-Z0-9]", "", job_url[-30:])
+                or str(abs(hash(job_url)))[:12]
+            )
+
+            return RawJob(
+                external_id=external_id,
+                title=title,
+                company=company or "Unknown",
+                location=location or "Not specified",
+                experience=experience or "0-2 Years",
+                description=description,
+                required_skills=skills,
+                salary=salary or "",
+                posted_date=posted_date or "",
+                apply_url=job_url,
+                job_type="full_time",
+                source="naukri_notification",
+            )
+
+        except Exception as e:
+            logger.debug(f"_parse_job_detail_page error for {job_url}: {e}")
+            return None
+        finally:
+            await page.close()
+
     # Bug 1 fix: layered fallback apply-button selectors (same pattern as login)
     _APPLY_SELECTORS = [
         "#apply-button",

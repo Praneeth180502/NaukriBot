@@ -198,9 +198,12 @@ class JobHunterAgent:
             logger.error("No profile available — skipping cycle")
             return
 
-        # 1. Scrape & Auto-apply (same session, no re-login)
+        # 1. Scrape jobs (keyword search + notification centre) in one session
         all_raw: List[RawJob] = []
+        notif_external_ids: set = set()   # track notification-sourced job IDs
+
         async with NaukriScraper() as scraper:
+            # 1a. Keyword-based search (existing behaviour)
             for role in settings.search.target_roles:
                 for location in settings.search.locations:
                     try:
@@ -214,7 +217,25 @@ class JobHunterAgent:
                     except Exception as e:
                         logger.error(f"Scrape error ({role}/{location}): {e}")
 
-            logger.info(f"Raw jobs collected: {len(all_raw)}")
+            logger.info(f"Search jobs collected: {len(all_raw)}")
+
+            # 1b. Notification centre — recommended / matched jobs (new)
+            try:
+                notif_raw = await scraper.scrape_notification_jobs()
+                if notif_raw:
+                    logger.info(
+                        f"Notification centre jobs collected: {len(notif_raw)}"
+                    )
+                    # Record external IDs so we can skip the experience gate later
+                    for nj in notif_raw:
+                        notif_external_ids.add(nj.external_id)
+                    all_raw.extend(notif_raw)
+                else:
+                    logger.info("No notification jobs found this cycle")
+            except Exception as e:
+                logger.error(f"Notification scrape error: {e}")
+
+            logger.info(f"Total raw jobs collected: {len(all_raw)}")
 
             # 2. Persist new jobs → get back safe JobData list
             new_job_data = self._persist_new_jobs(all_raw)
@@ -226,39 +247,76 @@ class JobHunterAgent:
             # 3. Score → returns new JobData list with scores filled in
             scored = self._score_jobs(new_job_data, profile)
 
-            # Apply to jobs that:
-            #   • start from 0 or 1 yr experience (entry-level / fresher-friendly), AND
-            #   • meet the overall score threshold OR have a strong skill match
-            high_match = [
+            # 4a. High-match search jobs (existing rule):
+            #     • experience_min ≤ 1 yr  AND
+            #     • meets score threshold OR strong skill match
+            high_match_search = [
                 j for j in scored
-                if j.experience_min <= 1.0
+                if j.external_id not in notif_external_ids   # search-sourced only
+                and j.experience_min <= 1.0
                 and (
                     (j.final_score or 0) >= settings.ranking.alert_threshold
                     or (j.skill_match_score or 0) >= 50.0
                 )
             ]
-            if high_match:
-                applied_count = 0
-                # Attempt auto-apply for top 5 high-match jobs per cycle
-                for job in high_match[:5]:
-                    try:
-                        success = await scraper.auto_apply(job.apply_url, profile_data=profile)
-                        if success:
-                            self.mark_applied(
-                                job.id,
-                                notes="Auto-applied via Naukri direct apply",
-                            )
-                            await self.telegram.send_message(
-                                f"✅ *Auto-Applied!* Just applied to *{job.title}* at *{job.company}*."
-                            )
-                            applied_count += 1
-                    except Exception as e:
-                        logger.error(f"Auto-apply pipeline error for job {job.id}: {e}")
 
-                logger.info(f"Auto-apply phase done: {applied_count} applied out of {len(high_match[:5])} attempted")
+            # 4b. Notification jobs — apply to ALL (Naukri already matched to profile)
+            notif_jobs = [
+                j for j in scored
+                if j.external_id in notif_external_ids
+            ]
 
-                # Send Telegram alerts after apply attempts
-                await self._send_alerts(high_match[:5], profile)
+            logger.info(
+                f"Apply targets — search high-match: {len(high_match_search)}, "
+                f"notification: {len(notif_jobs)}"
+            )
+
+            applied_count = 0
+
+            # Auto-apply: top 5 high-match search jobs (existing cap)
+            for job in high_match_search[:5]:
+                try:
+                    success = await scraper.auto_apply(job.apply_url, profile_data=profile)
+                    if success:
+                        self.mark_applied(
+                            job.id,
+                            notes="Auto-applied via Naukri direct apply",
+                        )
+                        await self.telegram.send_message(
+                            f"✅ *Auto-Applied!* Just applied to *{job.title}* at *{job.company}*."
+                        )
+                        applied_count += 1
+                except Exception as e:
+                    logger.error(f"Auto-apply pipeline error for job {job.id}: {e}")
+
+            # Auto-apply: ALL notification-sourced jobs (no cap, no experience gate)
+            for job in notif_jobs:
+                try:
+                    success = await scraper.auto_apply(job.apply_url, profile_data=profile)
+                    if success:
+                        self.mark_applied(
+                            job.id,
+                            notes="Auto-applied via Naukri notification recommendation",
+                        )
+                        await self.telegram.send_message(
+                            f"🔔 *Notification Apply!* Applied to *{job.title}* at *{job.company}* "
+                            f"(Naukri recommended)."
+                        )
+                        applied_count += 1
+                    await asyncio.sleep(1)   # small delay between notification applies
+                except Exception as e:
+                    logger.error(
+                        f"Notification auto-apply error for job {job.id}: {e}"
+                    )
+
+            logger.info(
+                f"Auto-apply phase done: {applied_count} applied "
+                f"({len(high_match_search[:5])} search + {len(notif_jobs)} notification attempted)"
+            )
+
+            # Send Telegram alerts for all applied jobs
+            alert_jobs = high_match_search[:5] + notif_jobs
+            await self._send_alerts(alert_jobs, profile)
 
         # 5. Skill gaps
         self._update_skill_gaps(new_job_data, profile)
@@ -266,7 +324,10 @@ class JobHunterAgent:
         # 6. Persist FAISS
         self.embedding.save_index()
 
-        logger.success(f"Cycle done: {len(new_job_data)} new, {len(high_match)} alerts sent")
+        logger.success(
+            f"Cycle done: {len(new_job_data)} new jobs, "
+            f"{applied_count} applied ({len(notif_jobs)} from notifications)"
+        )
 
     # ── Persist new jobs ──────────────────────────────────────────────────
 
@@ -284,7 +345,12 @@ class JobHunterAgent:
                         continue
 
                     exp_data = self._parse_experience(raw.experience)
-                    if exp_data["experience_min"] >= 2.0:
+                    # Skip experience gate for notification-sourced jobs —
+                    # Naukri has already matched them to the user's profile.
+                    if (
+                        exp_data["experience_min"] >= 2.0
+                        and raw.source != "naukri_notification"
+                    ):
                         continue
 
                     job = Job(
